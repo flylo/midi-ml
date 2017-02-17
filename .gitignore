@@ -1,0 +1,9 @@
+google_service_key.json
+*.idea
+.idea/*
+.DS_STORE
+*__pycache__
+build/
+tmp/
+.gitignore.swp
+*.swp
