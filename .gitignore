@@ -7,3 +7,4 @@ build/
 tmp/
 .gitignore.swp
 *.swp
+*.ipynb_checkpoints/
