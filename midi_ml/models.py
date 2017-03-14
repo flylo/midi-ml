@@ -7,7 +7,8 @@ class PenalizedLogisticRegression(object):
     Logistic Regression with an L2 penalty
     """
 
-    def __init__(self, X: np.array,
+    def __init__(self,
+                 X: np.array,
                  y: np.array,
                  l2_penalty: float = 0.,
                  num_iter: int = 10):
@@ -21,7 +22,7 @@ class PenalizedLogisticRegression(object):
         self.X = X
         self.y = y
         self.lmbda_ = l2_penalty
-        self.beta_ = np.random.uniform(-1, 1, size=(1, X.shape[1]))
+        self.beta_ = np.zeros((1, X.shape[1]))  # np.random.uniform(-1, 1, size=(1, X.shape[1]))
         self.num_iter_ = num_iter
         self.log_likelihood_ = []
 
@@ -43,6 +44,7 @@ class PenalizedLogisticRegression(object):
         if new_X is None:
             exp_log_odds = np.exp(np.dot(self.beta_, self.X.T)).T
         else:
+            new_X = np.hstack([new_X, np.ones((new_X.shape[0], 1))])
             exp_log_odds = np.exp(np.dot(self.beta_, new_X.T)).T
         return (1. / (1. + exp_log_odds)).ravel()
 
@@ -96,13 +98,76 @@ class PenalizedLogisticRegression(object):
         self._newton_raphson()
 
 
+import pdb
+
+
+class LinearDiscriminantAnalysis(object):
+    """
+
+    """
+
+    def __init__(self,
+                 X: np.array,
+                 y: np.array,
+                 keep_copy_of_X=False):
+        """
+        :param X: (N * M)-dimensional array containing the input data in matrix form
+        :param y: (N * 1)-dimensional array containing the binary target variable, encoded as 0 and 1
+        """
+        self.X = X
+        self.y = y
+        self.classes_ = set(self.y)
+        self.keep_copy_of_X = keep_copy_of_X
+
+        self.X_given_class_ = {}
+        self.mean_given_class_ = {}
+        self.class_priors_ = {}
+        self.class_covariances_ = {}
+        self.within_class_covariance_ = None  # type: np.array
+        self.transformation_matrix_ = None  # type: np.array
+
+    def _get_class_conditionals(self):
+        """
+        Separate the data by class, get the conditional means and class priors
+        :return:
+        """
+        for i in self.classes_:
+            self.X_given_class_[i] = self.X[np.where(self.y == i)]
+            self.mean_given_class_[i] = self.X_given_class_[i].mean(axis=0)
+            self.class_priors_[i] = self.X_given_class_[i].shape[0] / float(self.X.shape[0])
+        if not self.keep_copy_of_X:
+            self.X = None
+
+    def _get_class_covariances(self):
+        """
+        Get the class conditional covariance matrices and the within-class covariance matrix
+        :return:
+        """
+        self.within_class_covariance_ = np.zeros((self.X_given_class_[0].shape[1], self.X_given_class_[0].shape[1]))
+        for i in self.classes_:
+            X_minus_mu = self.X_given_class_[i] - self.mean_given_class_[i]
+            self.class_covariances_[i] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
+            self.within_class_covariance_ += self.class_priors_[i] * self.class_covariances_[i]
+
+    def fit(self):
+        self._get_class_conditionals()
+        self._get_class_covariances()
+        self.transformation_matrix_ = np.dot(np.linalg.inv(self.within_class_covariance_),
+                                             (self.mean_given_class_[0] - self.mean_given_class_[1]))
+
+
 def main():
     X, y = datasets.make_classification(n_samples=1000,
                                         n_features=3,
                                         n_informative=3,
                                         n_redundant=0)
+
     plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=5)
-    plr.fit()
+    lda = LinearDiscriminantAnalysis(X=X, y=y)
+    lda.fit()
+    pdb.set_trace()
+    # plr.fit()
+
     print(plr.log_likelihood_)
 
 
