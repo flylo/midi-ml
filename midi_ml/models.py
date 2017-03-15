@@ -1,6 +1,12 @@
 import numpy as np
+from functools import partial
+
+# TODO move this to the unit tests
 from sklearn import datasets
 
+
+# TODO: unit tests
+# TODO: change np.linalg.inv to np.linalg.solve
 
 class PenalizedLogisticRegression(object):
     """
@@ -84,8 +90,8 @@ class PenalizedLogisticRegression(object):
         Run self.num_iter_ iterations of the Newton-Raphson algorithm to fit a logistic regression model
         :return:
         """
-        for i in range(self.num_iter_):
-            print("Running iteration {num} of Newton-Raphson algorithm".format(num=str(i)))
+        for c in range(self.num_iter_):
+            print("Running iteration {num} of Newton-Raphson algorithm".format(num=str(c)))
             self.log_likelihood_.append(self._log_likelihood())
             self.beta_ = self._newton_step()
         print("Model-fitting complete")
@@ -131,10 +137,10 @@ class LinearDiscriminantAnalysis(object):
         Separate the data by class, get the conditional means and class priors
         :return:
         """
-        for i in self.classes_:
-            self.X_given_class_[i] = self.X[np.where(self.y == i)]
-            self.mean_given_class_[i] = self.X_given_class_[i].mean(axis=0)
-            self.class_priors_[i] = self.X_given_class_[i].shape[0] / float(self.X.shape[0])
+        for c in self.classes_:
+            self.X_given_class_[c] = self.X[np.where(self.y == c)]
+            self.mean_given_class_[c] = self.X_given_class_[c].mean(axis=0)
+            self.class_priors_[c] = self.X_given_class_[c].shape[0] / float(self.X.shape[0])
         if not self.keep_copy_of_X:
             self.X = None
 
@@ -144,16 +150,142 @@ class LinearDiscriminantAnalysis(object):
         :return:
         """
         self.within_class_covariance_ = np.zeros((self.X_given_class_[0].shape[1], self.X_given_class_[0].shape[1]))
-        for i in self.classes_:
-            X_minus_mu = self.X_given_class_[i] - self.mean_given_class_[i]
-            self.class_covariances_[i] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
-            self.within_class_covariance_ += self.class_priors_[i] * self.class_covariances_[i]
+        for c in self.classes_:
+            X_minus_mu = self.X_given_class_[c] - self.mean_given_class_[c]
+            self.class_covariances_[c] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
+            self.within_class_covariance_ += self.class_priors_[c] * self.class_covariances_[c]
 
     def fit(self):
         self._get_class_conditionals()
         self._get_class_covariances()
         self.transformation_matrix_ = np.dot(np.linalg.inv(self.within_class_covariance_),
                                              (self.mean_given_class_[0] - self.mean_given_class_[1]))
+
+
+# TODO move these into the NaiveBayesClassifier class
+# TODO log_gaussian_pdf so we select the class that maximizes log-likelihood
+def gaussian_pdf(x: float, mu: float, sigma: float) -> np.array:
+    return np.array(1. / np.sqrt(2 * np.pi * sigma ** 2) * np.exp(-(x - mu) ** 2 / (2 * sigma ** 2)))
+
+
+def log_multinomial_pmf(counts: np.array, smoothing: int = 1):
+    """
+
+    :param counts: numpy array of k integers specifying the count of successes
+                    across k categories
+    :param smoothing: smoothing parameter from the Dirichlet prior. Setting this
+                        to 1 is equivalent to Laplace Smoothing.
+    :return:
+    """
+    n = counts.sum()
+    return (counts + smoothing) / (n + smoothing)
+
+
+class NaiveBayesClassifier(object):
+    """
+    Classifiers of the Naive Bayes family. All input features are assumed to be drawn from
+     the same family of distributions.
+     http://people.csail.mit.edu/jrennie/papers/icml03-nb.pdf
+    """
+
+    # TODO: finish docstrings
+    def __init__(self,
+                 X: np.array,
+                 y: np.array,
+                 feature_family: str = "multinomial",
+                 smoothing: int = 1,
+                 keep_copy_of_X: bool = True):
+        """
+        :param X: (N * M)-dimensional array containing the input data in matrix form
+        :param y: (N * 1)-dimensional array containing the binary target variable, encoded as 0 and 1
+        """
+        feature_families = ["gaussian", "multinomial", "bernoulli"]
+        if feature_family not in feature_families:
+            raise ValueError("Please select a distribution in %s" % str(feature_families))
+        self.X = X
+        self.y = y
+        self.classes_ = set(self.y)
+        self.feature_family_ = feature_family
+        self.keep_copy_of_X = keep_copy_of_X
+        self.smoothing_ = smoothing
+        self.X_given_class_ = {}
+        self.class_pdfs_ = {}
+        self.thetas_ = {}
+
+    def _get_class_conditional_data(self):
+        """
+        Separate the data by class
+        :return:
+        """
+        for c in self.classes_:
+            self.X_given_class_[c] = self.X[np.where(self.y == c)]
+        if not self.keep_copy_of_X:
+            self.X = None
+
+    def _predict_multinomial(self, new_X: np.array = None):
+        """
+
+        :param new_X: new numpy array containing values that you wish to make inferences for
+        :return:
+        """
+        if new_X is None:
+            if not self.keep_copy_of_X:
+                raise ValueError("Must keep copy of X in order to make predictions")
+            predictions = np.zeros((self.X.shape[0], len(self.classes_)))
+            for c in self.classes_:
+                class_conditional_log_probabilities = np.dot(self.X, self.thetas_[c])
+                predictions[:, c] = class_conditional_log_probabilities
+        else:
+            predictions = np.zeros((new_X.shape[0], len(self.classes_)))
+            for c in self.classes_:
+                class_conditional_log_probabilities = np.dot(new_X, self.thetas_[c])
+                predictions[:, c] = class_conditional_log_probabilities
+
+        return predictions.argmax(axis=1)
+
+    def _train_gaussian_model(self):
+        """
+
+        :return:
+        """
+        for c in self.classes_:
+            means = self.X_given_class_[c].mean(axis=0)
+            variances = self.X_given_class_[c].var(axis=0)
+            self.class_pdfs_[c] = partial(gaussian_pdf,
+                                          mu=means,
+                                          sigma=np.sqrt(variances))
+
+    def _train_multinomial_model(self):
+        """
+
+        :return:
+        """
+        # TODO: different smoothing for numerator?
+        # We use the log of the probability that a document is drawn from this parametric
+        # form of the distribution to ease the computation (by avoiding multiplying very small numbers)
+        for c in self.classes_:
+            # get values of n
+            feature_sums = self.X_given_class_[c].sum(axis=0)
+            alpha_i = float(self.smoothing_) / self.X_given_class_[c].shape[1]
+            alpha = self.smoothing_
+            self.thetas_[c] = (feature_sums + alpha_i) / (feature_sums.sum() + alpha)
+
+    def _get_parametric_probability_estimates(self, feature_family: str):
+        """
+
+        :param feature_family:
+        :return:
+        """
+        if feature_family == "gaussian":
+            self._train_gaussian_model()
+        elif feature_family == "multinomial":
+            self._train_multinomial_model()
+        else:
+            raise ValueError("please select a valid family of probability distributions")
+
+    def fit(self):
+        self._get_class_conditional_data()
+        self._get_parametric_probability_estimates(feature_family=self.feature_family_)
 
 
 def main():
@@ -164,11 +296,21 @@ def main():
 
     plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=5)
     lda = LinearDiscriminantAnalysis(X=X, y=y)
-    lda.fit()
-    pdb.set_trace()
-    # plr.fit()
+    nb = NaiveBayesClassifier(X=X, y=y, feature_family="gaussian")
 
-    print(plr.log_likelihood_)
+    X = np.random.multinomial(n=20,
+                              pvals=np.random.dirichlet([1] * 10, 1).ravel(),
+                              size=1000)
+    nb = NaiveBayesClassifier(X=X, y=y, feature_family="multinomial")
+    nb.fit()
+    nb._predict_multinomial()
+    pdb.set_trace()
+
+    # plr.fit()
+    # lda.fit()
+    nb.fit()
+
+    pdb.set_trace()
 
 
 if __name__ == "__main__":
