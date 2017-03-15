@@ -1,6 +1,7 @@
 import numpy as np
 from functools import partial
-
+# TODO remove
+import pdb
 # TODO move this to the unit tests
 from sklearn import datasets
 
@@ -28,7 +29,7 @@ class PenalizedLogisticRegression(object):
         self.X = X
         self.y = y
         self.lmbda_ = l2_penalty
-        self.beta_ = np.zeros((1, X.shape[1]))  # np.random.uniform(-1, 1, size=(1, X.shape[1]))
+        self.beta_ = np.zeros((1, X.shape[1]))
         self.num_iter_ = num_iter
         self.log_likelihood_ = []
 
@@ -104,9 +105,6 @@ class PenalizedLogisticRegression(object):
         self._newton_raphson()
 
 
-import pdb
-
-
 class LinearDiscriminantAnalysis(object):
     """
 
@@ -162,61 +160,55 @@ class LinearDiscriminantAnalysis(object):
                                              (self.mean_given_class_[0] - self.mean_given_class_[1]))
 
 
-# TODO move these into the NaiveBayesClassifier class
-# TODO log_gaussian_pdf so we select the class that maximizes log-likelihood
-def gaussian_pdf(x: float, mu: float, sigma: float) -> np.array:
-    return np.array(1. / np.sqrt(2 * np.pi * sigma ** 2) * np.exp(-(x - mu) ** 2 / (2 * sigma ** 2)))
-
-
-def log_gaussian_pdf(x: float, mu: float, sigma: float) -> np.array:
-    return np.array(np.log(1. / np.sqrt(2 * np.pi * sigma ** 2)) - (x - mu) ** 2 / (2 * sigma ** 2))
-
-
-def log_multinomial_pmf(counts: np.array, smoothing: int = 1):
-    """
-
-    :param counts: numpy array of k integers specifying the count of successes
-                    across k categories
-    :param smoothing: smoothing parameter from the Dirichlet prior. Setting this
-                        to 1 is equivalent to Laplace Smoothing.
-    :return:
-    """
-    n = counts.sum()
-    return (counts + smoothing) / (n + smoothing)
-
-
 # TODO: get a better understanding of the smoothing
 class NaiveBayesClassifier(object):
     """
     Classifiers of the Naive Bayes family. All input features are assumed to be drawn from
-     the same family of distributions.
+     a distribution of the same parametric form
      http://people.csail.mit.edu/jrennie/papers/icml03-nb.pdf
     """
 
-    # TODO: finish docstrings
     def __init__(self,
                  X: np.array,
                  y: np.array,
-                 feature_family: str = "multinomial",
-                 smoothing: int = 1,
-                 keep_copy_of_X: bool = True):
+                 parametric_form: str = "multinomial",
+                 keep_copy_of_X: bool = True,
+                 smoothing: int = 1):
         """
         :param X: (N * M)-dimensional array containing the input data in matrix form
         :param y: (N * 1)-dimensional array containing the binary target variable, encoded as 0 and 1
+        :param parametric_form: the parametric form that the features are assumed to take (used to define PDF)
+        :param keep_copy_of_X: Whether to keep a copy of X in memory (to be used for making predictions on the training set)
+        :param smoothing: Smoothing parameter for dirichlet prior in multinomial model (sets to None if "bernoulli" or "gaussian" or chosen)
         """
-        feature_families = ["gaussian", "multinomial", "bernoulli"]
-        if feature_family not in feature_families:
-            raise ValueError("Please select a distribution in %s" % str(feature_families))
+        parametric_forms = ["bernoulli", "multinomial", "gaussian"]
+        if parametric_form not in parametric_forms:
+            raise ValueError("Please select a distribution in %s" % str(parametric_forms))
         self.X = X
         self.y = y
         self.classes_ = set(self.y)
-        self.feature_family_ = feature_family
+        self.parametric_form_ = parametric_form
         self.keep_copy_of_X = keep_copy_of_X
-        self.smoothing_ = smoothing
+        if parametric_form is "multinomial":
+            self.smoothing_ = smoothing
+        else:
+            self.smoothing_ = None
         self.num_records_ = None  # type: int
         self.X_given_class_ = {}
-        self.log_pdf_given_class_ = {}
         self.thetas_ = {}
+        self.priors_ = {}
+        self.log_pdf_given_class_ = {}
+
+    @staticmethod
+    def log_gaussian_pdf(x: float, mu: float, sigma: float) -> np.array:
+        """
+        Log of the Gaussian probability density function
+        :param x: value (or np.array of values) at which we compute the relative likelihood of drawing that point
+        :param mu: mean of the Gaussian
+        :param sigma: standard deviation of the Gaussian
+        :return: Array with the log-probability of each x
+        """
+        return np.array(np.log(1. / np.sqrt(2 * np.pi * sigma ** 2)) - (x - mu) ** 2 / (2 * sigma ** 2))
 
     def _get_class_conditional_data(self):
         """
@@ -229,17 +221,18 @@ class NaiveBayesClassifier(object):
         if not self.keep_copy_of_X:
             self.X = None
 
+    # TODO: add priors
     def _make_predictions(self, X: np.array = None):
         """
-
-        :param X:
+        Predict the class of the input values X
+        :param X: matrix to make predictions with
         :return:
         """
         predictions = np.zeros((self.X.shape[0], len(self.classes_)))
         for c in self.classes_:
-            if self.feature_family_ in ("multinomial", "bernoulli"):
+            if self.parametric_form_ in ("multinomial", "bernoulli"):
                 class_conditional_log_probabilities = np.dot(X, self.thetas_[c])
-            elif self.feature_family_ == "gaussian":
+            elif self.parametric_form_ == "gaussian":
                 class_conditional_log_probabilities = self.log_pdf_given_class_[c](self.X).sum(axis=1)
             else:
                 raise ValueError("Must select proper feature family to make predictions")
@@ -248,8 +241,8 @@ class NaiveBayesClassifier(object):
 
     def predict(self, new_X: np.array = None) -> np.array:
         """
-
-        :param new_X:
+        Exposed API to make predictions
+        :param new_X: New set of X values to make predictions with (optional)
         :return:
         """
         if new_X is None:
@@ -259,21 +252,21 @@ class NaiveBayesClassifier(object):
         else:
             return self._make_predictions(new_X)
 
-    def _train_gaussian_model(self):
+    def _train_bernoulli_model(self):
         """
-
+        Train a Bernoulli Naive Bayes
         :return:
         """
+        # We use the log of the probability that a document is drawn from this parametric
+        # form of the distribution to ease the computation (by avoiding multiplying very small numbers)
         for c in self.classes_:
-            means = self.X_given_class_[c].mean(axis=0)
-            variances = self.X_given_class_[c].var(axis=0)
-            self.log_pdf_given_class_[c] = partial(log_gaussian_pdf,
-                                                   mu=means,
-                                                   sigma=np.sqrt(variances))
+            class_size = self.X_given_class_[c].shape[0]
+            feature_counts = self.X_given_class_[c].sum(axis=0)
+            self.thetas_[c] = np.log(feature_counts + 1) - np.log(class_size + 2)
 
     def _train_multinomial_model(self):
         """
-
+        Train a Multinomial Naive Bayes
         :return:
         """
         # We use the log of the probability that a document is drawn from this parametric
@@ -285,36 +278,41 @@ class NaiveBayesClassifier(object):
             alpha = self.smoothing_
             self.thetas_[c] = np.log(feature_sums + alpha_i) - np.log(feature_sums.sum() + alpha)
 
-    def _train_bernoulli_model(self):
+    # TODO: in high dimensions we'll be storing 10s of thousands of functions which could be inefficient
+    def _train_gaussian_model(self):
         """
-
+        Train a Gaussain Naive Bayes
         :return:
         """
-        # We use the log of the probability that a document is drawn from this parametric
-        # form of the distribution to ease the computation (by avoiding multiplying very small numbers)
         for c in self.classes_:
-            class_size = self.X_given_class_[c].shape[0]
-            feature_counts = self.X_given_class_[c].sum(axis=0)
-            self.thetas_[c] = np.log(feature_counts + 1) - np.log(class_size + 2)
+            means = self.X_given_class_[c].mean(axis=0)
+            variances = self.X_given_class_[c].var(axis=0)
+            self.log_pdf_given_class_[c] = partial(self.log_gaussian_pdf,
+                                                   mu=means,
+                                                   sigma=np.sqrt(variances))
 
-    def _get_parametric_probability_estimates(self, feature_family: str):
+    def _get_parametric_probability_estimates(self, parametric_form: str):
         """
-
-        :param feature_family:
+        Estimate the parameters of the parametric probability distributions
+        :param parametric_form: the form we assume for estimating PDFs/PMFs
         :return:
         """
-        if feature_family == "bernoulli":
+        if parametric_form == "bernoulli":
             self._train_bernoulli_model()
-        elif feature_family == "multinomial":
+        elif parametric_form == "multinomial":
             self._train_multinomial_model()
-        elif feature_family == "gaussian":
+        elif parametric_form == "gaussian":
             self._train_gaussian_model()
         else:
             raise ValueError("Please select a valid family of probability distributions")
 
     def fit(self):
+        """
+        Exposed API for training model
+        :return:
+        """
         self._get_class_conditional_data()
-        self._get_parametric_probability_estimates(feature_family=self.feature_family_)
+        self._get_parametric_probability_estimates(parametric_form=self.parametric_form_)
 
 
 def main():
@@ -324,7 +322,7 @@ def main():
                                         n_redundant=0)
     plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=5)
     lda = LinearDiscriminantAnalysis(X=X, y=y)
-    nb = NaiveBayesClassifier(X=X, y=y, feature_family="gaussian")
+    nb = NaiveBayesClassifier(X=X, y=y, parametric_form="gaussian")
     nb.fit()
     preds = nb.predict()
     from sklearn.metrics import confusion_matrix
@@ -332,12 +330,12 @@ def main():
     X = np.random.multinomial(n=20,
                               pvals=np.random.dirichlet([1] * 10, 1).ravel(),
                               size=1000)
-    nb = NaiveBayesClassifier(X=X, y=y, feature_family="multinomial")
+    nb = NaiveBayesClassifier(X=X, y=y, parametric_form="multinomial")
     nb.fit()
     preds = nb.predict()
     print(confusion_matrix(y, preds))
     X = (X > 0).astype(int)
-    nb = NaiveBayesClassifier(X=X, y=y, feature_family="bernoulli")
+    nb = NaiveBayesClassifier(X=X, y=y, parametric_form="bernoulli")
     nb.fit()
     preds = nb.predict()
     print(confusion_matrix(y, preds))
