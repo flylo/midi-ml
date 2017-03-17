@@ -7,7 +7,6 @@ from sklearn import datasets
 
 
 # TODO: unit tests
-# TODO: change np.linalg.inv to np.linalg.solve
 
 class PenalizedLogisticRegression(object):
     """
@@ -33,6 +32,7 @@ class PenalizedLogisticRegression(object):
         self.num_iter_ = num_iter
         self.log_likelihood_ = []
 
+    # TODO: why are log-likelihoods decreasing even as fit gets better?
     def _log_likelihood(self) -> float:
         """
         Return the log-likelihood of the model given the data (i.e. P(D|M))
@@ -83,7 +83,7 @@ class PenalizedLogisticRegression(object):
         probs = self.predict_probabilities()
         score = self._score_function(probs)
         hess = self._hessian(probs)
-        step = np.linalg.inv(hess).dot(score.T).ravel()
+        step = np.linalg.solve(hess, score.T).ravel()
         return (self.beta_ - step).reshape(self.beta_.shape)
 
     def _newton_raphson(self):
@@ -99,7 +99,7 @@ class PenalizedLogisticRegression(object):
 
     def fit(self):
         """
-        Fit a penalized logistic regression model
+        Exposed API to fit a penalized logistic regression model
         :return:
         """
         self._newton_raphson()
@@ -107,16 +107,17 @@ class PenalizedLogisticRegression(object):
 
 class LinearDiscriminantAnalysis(object):
     """
-
+    Train a two-class linear discriminant analysis classifier
     """
 
     def __init__(self,
                  X: np.array,
                  y: np.array,
-                 keep_copy_of_X=False):
+                 keep_copy_of_X=True):
         """
         :param X: (N * M)-dimensional array containing the input data in matrix form
         :param y: (N * 1)-dimensional array containing the binary target variable, encoded as 0 and 1
+        :param keep_copy_of_X: whether or not to persist a copy of the data in the model object
         """
         self.X = X
         self.y = y
@@ -127,6 +128,7 @@ class LinearDiscriminantAnalysis(object):
         self.mean_given_class_ = {}
         self.class_priors_ = {}
         self.class_covariances_ = {}
+        self.decision_threshold_ = None  # type: float
         self.within_class_covariance_ = None  # type: np.array
         self.transformation_matrix_ = None  # type: np.array
 
@@ -153,11 +155,31 @@ class LinearDiscriminantAnalysis(object):
             self.class_covariances_[c] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
             self.within_class_covariance_ += self.class_priors_[c] * self.class_covariances_[c]
 
+    def predict(self, new_X: np.array = None):
+        """
+        Exposed API to make predictions
+        :param new_X: New set of X values to make predictions with (optional)
+        :return:
+        """
+        if new_X is None:
+            if not self.keep_copy_of_X:
+                raise ValueError("Must keep copy of X in order to make predictions")
+            return (self.X.dot(self.transformation_matrix_) < self.decision_threshold_).astype(int)
+        else:
+            return (new_X.dot(self.transformation_matrix_) < self.decision_threshold_).astype(int)
+
     def fit(self):
+        """
+        Exposed API for training a LDA model
+        :return:
+        """
         self._get_class_conditionals()
         self._get_class_covariances()
-        self.transformation_matrix_ = np.dot(np.linalg.inv(self.within_class_covariance_),
-                                             (self.mean_given_class_[0] - self.mean_given_class_[1]))
+        difference_in_means = self.mean_given_class_[0] - self.mean_given_class_[1]
+        self.transformation_matrix_ = np.linalg.solve(self.within_class_covariance_, difference_in_means)
+        # The decision threshold is the hyperplane at the mid-point between projections of the means of the two classes
+        self.decision_threshold_ = np.dot(self.transformation_matrix_,
+                                          (self.mean_given_class_[0] + self.mean_given_class_[1]) / 2.)
 
 
 # TODO: get a better understanding of the smoothing
@@ -203,7 +225,7 @@ class NaiveBayesClassifier(object):
     def log_gaussian_pdf(x: float, mu: float, sigma: float) -> np.array:
         """
         Log of the Gaussian probability density function
-        :param x: value (or np.array of values) at which we compute the relative likelihood of drawing that point
+        :param x: value (or np.array of values) at which we compute the relative log-likelihood of drawing that point
         :param mu: mean of the Gaussian
         :param sigma: standard deviation of the Gaussian
         :return: Array with the log-probability of each x
@@ -215,9 +237,10 @@ class NaiveBayesClassifier(object):
         Separate the data by class
         :return:
         """
+        self.num_records_ = self.X.shape[0]
         for c in self.classes_:
             self.X_given_class_[c] = self.X[np.where(self.y == c)]
-        self.num_records_ = self.X.shape[0]
+            self.priors_[c] = float(self.X_given_class_[c]) / self.num_records_
         if not self.keep_copy_of_X:
             self.X = None
 
@@ -236,7 +259,8 @@ class NaiveBayesClassifier(object):
                 class_conditional_log_probabilities = self.log_pdf_given_class_[c](self.X).sum(axis=1)
             else:
                 raise ValueError("Must select proper feature family to make predictions")
-            predictions[:, c] = class_conditional_log_probabilities
+            # we add the log of the prior probability of the class as an "intercept"
+            predictions[:, c] = class_conditional_log_probabilities + np.log(self.priors_[c])
         return predictions.argmax(axis=1)
 
     def predict(self, new_X: np.array = None) -> np.array:
@@ -316,17 +340,25 @@ class NaiveBayesClassifier(object):
 
 
 def main():
+    from sklearn.metrics import confusion_matrix
     X, y = datasets.make_classification(n_samples=1000,
                                         n_features=3,
                                         n_informative=3,
                                         n_redundant=0)
     plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=5)
+    plr.fit()
     lda = LinearDiscriminantAnalysis(X=X, y=y)
+    lda.fit()
+    preds = lda.predict()
+    print(confusion_matrix(y, preds))
+    pdb.set_trace()
+
+
+
     nb = NaiveBayesClassifier(X=X, y=y, parametric_form="gaussian")
     nb.fit()
     preds = nb.predict()
-    from sklearn.metrics import confusion_matrix
-    print(confusion_matrix(y, preds))
+
     X = np.random.multinomial(n=20,
                               pvals=np.random.dirichlet([1] * 10, 1).ravel(),
                               size=1000)
