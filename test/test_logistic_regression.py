@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from sklearn import datasets
 from sklearn.metrics import confusion_matrix
-from midi_ml.models import PenalizedLogisticRegression
+from midi_ml.models.linear_decision_rules import PenalizedLogisticRegression
 
 
 class PenalizedLogisticRegressionTestCase(unittest.TestCase):
