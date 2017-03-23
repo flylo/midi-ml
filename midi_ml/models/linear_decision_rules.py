@@ -1,12 +1,6 @@
 import numpy as np
 from functools import partial
-# TODO remove
-import pdb
-# TODO move this to the unit tests
-from sklearn import datasets
 
-
-# TODO: unit tests
 
 class PenalizedLogisticRegression(object):
     """
@@ -240,11 +234,10 @@ class NaiveBayesClassifier(object):
         self.num_records_ = self.X.shape[0]
         for c in self.classes_:
             self.X_given_class_[c] = self.X[np.where(self.y == c)]
-            self.priors_[c] = float(self.X_given_class_[c]) / self.num_records_
+            self.priors_[c] = float(self.X_given_class_[c].shape[0]) / self.num_records_
         if not self.keep_copy_of_X:
             self.X = None
 
-    # TODO: add priors
     def _make_predictions(self, X: np.array = None):
         """
         Predict the class of the input values X
@@ -340,7 +333,7 @@ class NaiveBayesClassifier(object):
 
 
 def main():
-    from sklearn.metrics import confusion_matrix
+    from sklearn import datasets
     X, y = datasets.make_classification(n_samples=1000,
                                         n_features=3,
                                         n_informative=3,
@@ -349,35 +342,18 @@ def main():
     plr.fit()
     lda = LinearDiscriminantAnalysis(X=X, y=y)
     lda.fit()
-    preds = lda.predict()
-    print(confusion_matrix(y, preds))
-    pdb.set_trace()
-
-
 
     nb = NaiveBayesClassifier(X=X, y=y, parametric_form="gaussian")
     nb.fit()
-    preds = nb.predict()
 
     X = np.random.multinomial(n=20,
                               pvals=np.random.dirichlet([1] * 10, 1).ravel(),
                               size=1000)
     nb = NaiveBayesClassifier(X=X, y=y, parametric_form="multinomial")
     nb.fit()
-    preds = nb.predict()
-    print(confusion_matrix(y, preds))
     X = (X > 0).astype(int)
     nb = NaiveBayesClassifier(X=X, y=y, parametric_form="bernoulli")
     nb.fit()
-    preds = nb.predict()
-    print(confusion_matrix(y, preds))
-    pdb.set_trace()
-
-    # plr.fit()
-    # lda.fit()
-    nb.fit()
-
-    pdb.set_trace()
 
 
 if __name__ == "__main__":
