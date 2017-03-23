@@ -3,7 +3,7 @@ import numpy as np
 
 class PrincipalComponents(object):
     """
-
+    Run a principal components analysis
     """
 
     def __init__(self, X):
@@ -27,10 +27,8 @@ class PrincipalComponents(object):
             self.means_ = self.X.mean(axis=0)
             self.sds_ = np.sqrt(np.power(self.X - self.means_, 2).mean(axis=0))
             return (self.X - self.means_) / self.sds_
-            # return self.X - self.means_
         else:
             return (new_X - self.means_) / self.sds_
-            # return new_X - self.means_
 
     def _get_covariance(self):
         """
