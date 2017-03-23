@@ -13,6 +13,7 @@ class PrincipalComponents(object):
         self.covariance_ = None  # type: np.array
         self.eigenvalues_ = None  # type: np.array
         self.projection_matrix_ = None  # type: np.array
+        self.num_records_ = self.X.shape[0]
 
     def _normalize(self, new_X: np.array = None) -> np.array:
         """
@@ -25,9 +26,11 @@ class PrincipalComponents(object):
         if new_X is None:
             self.means_ = self.X.mean(axis=0)
             self.sds_ = np.sqrt(np.power(self.X - self.means_, 2).mean(axis=0))
-            return self.X - self.means_
+            return (self.X - self.means_) / self.sds_
+            # return self.X - self.means_
         else:
-            return new_X - self.means_
+            return (new_X - self.means_) / self.sds_
+            # return new_X - self.means_
 
     def _get_covariance(self):
         """
@@ -35,7 +38,7 @@ class PrincipalComponents(object):
         :return:
         """
         self.X = self._normalize()
-        self.covariance_ = np.dot(self.X.T, self.X)
+        self.covariance_ = np.dot(self.X.T, self.X) / (self.num_records_ - 1)
 
     def _eigendecomposition(self):
         eigenvalues, eigenvectors = np.linalg.eig(self.covariance_)
