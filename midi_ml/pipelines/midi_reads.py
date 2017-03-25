@@ -1,11 +1,10 @@
 import os
-import numpy as np
-import mido
-from typing import List
-from itertools import product
 from collections import defaultdict
+from itertools import product
+from typing import List
+import mido
+import numpy as np
 from scipy.sparse import dok_matrix, vstack
-from midi_ml.tools.util import download_from_gcs
 
 
 def window_gen(sequence, n):
@@ -137,8 +136,8 @@ class LabeledCorpusSet(object):
 
 
 def main(input: str, output: str, bucket: str) -> LabeledCorpusSet:
-    download_from_gcs(bucket_name=bucket,
-                      prefix=input,
-                      local_fs_loc=os.environ["LOCAL_DATA_LOC"])
-    labeled_corpus = LabeledCorpusSet(input)
+    # download_from_gcs(bucket_name=bucket,
+    #                   prefix=input,
+    #                   local_fs_loc=os.environ["LOCAL_DATA_LOC"])
+    labeled_corpus = LabeledCorpusSet(os.environ["LOCAL_DATA_LOC"])
     return labeled_corpus.parse_corpus_set()

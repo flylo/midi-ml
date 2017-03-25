@@ -42,7 +42,6 @@ ADD midi_ml ${HOME}/midi_ml
 ADD test ${HOME}/test
 ADD setup.py ${HOME}/setup.py
 RUN mkdir ${HOME}/local_data_loc
-ENV LOCAL_DATA_LOC ${HOME}/local_data_loc
 
 RUN python3 setup.py install \
     && rm setup.py \
@@ -57,5 +56,10 @@ RUN python3 -m unittest discover -v \
     && rm -r test
 
 RUN chmod +x /usr/local/bin/run_pipeline
+
+# Cache data that we will re-use
+ARG data_folder="data/"
+ADD $data_folder ${HOME}/data
+ENV LOCAL_DATA_LOC ${HOME}/data
 
 CMD ["run_pipeline"]
