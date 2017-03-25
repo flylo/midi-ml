@@ -5,6 +5,7 @@ from typing import List
 from itertools import product
 from collections import defaultdict
 from scipy.sparse import dok_matrix, vstack
+from midi_ml.tools.util import download_from_gcs
 
 
 def window_gen(sequence, n):
@@ -135,10 +136,9 @@ class LabeledCorpusSet(object):
         self.parsed_ = True
 
 
-def main(args: List[str]):
-    labeled_corpus = LabeledCorpusSet(args[0])
-    labeled_corpus.parse_corpus_set()
-
-
-if __name__ == "__main__":
-    main(["~/"])
+def main(input: str, output: str, bucket: str) -> LabeledCorpusSet:
+    download_from_gcs(bucket_name=bucket,
+                      prefix=input,
+                      local_fs_loc=os.environ["LOCAL_DATA_LOC"])
+    labeled_corpus = LabeledCorpusSet(input)
+    return labeled_corpus.parse_corpus_set()
