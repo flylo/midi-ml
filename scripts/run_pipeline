@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+
+import argparse
+from midi_ml.pipelines import midi_reads, train_and_evaluate
+
+def main(args):
+    corpus = midi_reads.main(args.input, args.output, args.bucket)
+    train_and_evaluate.main(corpus)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Runs the midi-ml pipeline")
+    parser.add_argument("--input")
+    parser.add_argument("--output")
+    parser.add_argument("--bucket")
+    main(parser.parse_args())

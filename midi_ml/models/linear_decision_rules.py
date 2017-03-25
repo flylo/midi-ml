@@ -1,5 +1,8 @@
+import logging
 import numpy as np
 from functools import partial
+
+logger = logging.getLogger(__name__)
 
 
 class PenalizedLogisticRegression(object):

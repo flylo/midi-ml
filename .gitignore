@@ -8,3 +8,5 @@ tmp/
 .gitignore.swp
 *.swp
 *.ipynb_checkpoints/
+data/
+notebooks/
