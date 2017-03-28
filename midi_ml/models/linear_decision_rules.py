@@ -14,12 +14,16 @@ class PenalizedLogisticRegression(object):
                  X: np.array,
                  y: np.array,
                  l2_penalty: float = 0.,
-                 num_iter: int = 10):
+                 num_iter: int = 10,
+                 tol: float = 10e-5,
+                 save_learning_info: bool = False):
         """
         :param X: (N * M)-dimensional array containing the input data in matrix form
         :param y: (N * 1)-dimensional array containing the binary target variable, encoded as 0 and 1
         :param l2_penalty: The regularization parameter that enforces sparseness in the coefficients of our model
         :param num_iter: The number of iterations to use in running the Newton-Raphson algorithm
+        :param tol: The convergence tolerance
+        :param save_learning_info: Whether or not to save the coefs and steps at each iteration
         """
         X = np.hstack([X, np.ones((X.shape[0], 1))])
         self.X = X
@@ -27,30 +31,34 @@ class PenalizedLogisticRegression(object):
         self.lmbda_ = l2_penalty
         self.beta_ = np.zeros((1, X.shape[1]))
         self.num_iter_ = num_iter
-        self.log_likelihood_ = []
+        self.tol_ = tol
+        self.save_learning_info = save_learning_info
+        self.converged_ = False
+        self._log_likelihood_each_iter = []
+        self._betas_each_iter = []
+        self._step_each_iter = []
 
-    # TODO: why are log-likelihoods decreasing even as fit gets better?
     def _log_likelihood(self) -> float:
         """
         Return the log-likelihood of the model given the data (i.e. P(D|M))
         :return:
         """
-        theta_dot_x = self.beta_.dot(self.X.T)
-        log_prob_data_given_theta = self.y * theta_dot_x - np.log(1 + np.exp(theta_dot_x))
+        beta_dot_x = self.beta_.dot(self.X.T)
+        log_prob_data_given_theta = self.y * beta_dot_x - np.log(1 + np.exp(beta_dot_x))
         return np.sum(log_prob_data_given_theta)
 
     def predict_probabilities(self, new_X: np.array = None) -> np.array:
         """
         Return the vector of probability predictions
-        :param new_X:
-        :return:
+        :param new_X: unseen observations
+        :return: array of predicted probabilities
         """
         if new_X is None:
-            exp_log_odds = np.exp(np.dot(self.beta_, self.X.T)).T
+            exp_neg_log_odds = np.exp(-np.dot(self.beta_, self.X.T)).T
         else:
             new_X = np.hstack([new_X, np.ones((new_X.shape[0], 1))])
-            exp_log_odds = np.exp(np.dot(self.beta_, new_X.T)).T
-        return (1. / (1. + exp_log_odds)).ravel()
+            exp_neg_log_odds = np.exp(-np.dot(self.beta_, new_X.T)).T
+        return (1. / (1. + exp_neg_log_odds)).ravel()
 
     def _score_function(self, probabilities) -> np.array:
         """
@@ -58,7 +66,7 @@ class PenalizedLogisticRegression(object):
         :param probabilities: (N * 1)-dimensional array of inferred probabilities
         :return: (1 * M+1)-dimensional array
         """
-        return np.dot(self.X.T, (self.y - probabilities)) + self.lmbda_ * self.beta_
+        return np.dot(self.X.T, (-self.y + probabilities)) + self.lmbda_ * self.beta_
 
     def _hessian(self, probabilities: np.array) -> np.array:
         """
@@ -81,17 +89,27 @@ class PenalizedLogisticRegression(object):
         score = self._score_function(probs)
         hess = self._hessian(probs)
         step = np.linalg.solve(hess, score.T).ravel()
-        return (self.beta_ - step).reshape(self.beta_.shape)
+        if self.save_learning_info:
+            self._step_each_iter.append(step)
+        new_betas = (self.beta_ - step).reshape(self.beta_.shape)
+        return new_betas
 
     def _newton_raphson(self):
         """
         Run self.num_iter_ iterations of the Newton-Raphson algorithm to fit a logistic regression model
         :return:
         """
+        self._log_likelihood_each_iter.append(self._log_likelihood())
+        if self.save_learning_info:
+            self._betas_each_iter.append(self.beta_)
         for c in range(self.num_iter_):
-            print("Running iteration {num} of Newton-Raphson algorithm".format(num=str(c)))
-            self.log_likelihood_.append(self._log_likelihood())
             self.beta_ = self._newton_step()
+            self._log_likelihood_each_iter.append(self._log_likelihood())
+            if self.save_learning_info:
+                self._betas_each_iter.append(self.beta_)
+            if (self._log_likelihood_each_iter[-1] - self._log_likelihood_each_iter[-2]) <= self.tol_:
+                self.converged_ = True
+                break
         print("Model-fitting complete")
 
     def fit(self):
@@ -338,10 +356,11 @@ class NaiveBayesClassifier(object):
 def main():
     from sklearn import datasets
     X, y = datasets.make_classification(n_samples=1000,
-                                        n_features=3,
-                                        n_informative=3,
-                                        n_redundant=0)
-    plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=5)
+                                        n_features=2,
+                                        n_informative=2,
+                                        n_redundant=0,
+                                        random_state=1010)
+    plr = PenalizedLogisticRegression(X=X, y=y, l2_penalty=15, num_iter=7)
     plr.fit()
     lda = LinearDiscriminantAnalysis(X=X, y=y)
     lda.fit()

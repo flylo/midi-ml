@@ -1,9 +1,20 @@
 import unittest
 import numpy as np
+import operator
 from sklearn import datasets
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, roc_auc_score
 from midi_ml.models.linear_decision_rules import PenalizedLogisticRegression, LinearDiscriminantAnalysis, \
     NaiveBayesClassifier
+
+
+def subsequent_entry_relationships(x: list, op: operator = operator.ge):
+    """
+    check the truth value of `op` for each subsequent entry in a list
+    :param x: list of numbers
+    :param op: operator to compare
+    :return:
+    """
+    return all([op(a, b) for (a, b) in zip(x, x[1:])])
 
 
 class PenalizedLogisticRegressionTestCase(unittest.TestCase):
@@ -28,7 +39,50 @@ class PenalizedLogisticRegressionTestCase(unittest.TestCase):
             plr.fit()
             sum_squared_coefs.append(np.sum(plr.beta_ ** 2))
 
-        self.assertTrue([a >= b for (a, b) in zip(sum_squared_coefs, sum_squared_coefs[1:])])
+        self.assertTrue(subsequent_entry_relationships(sum_squared_coefs))
+
+    def test_newton_steps(self):
+        """
+        gradient information should be computed properly
+        :return:
+        """
+        plr = PenalizedLogisticRegression(X=self.X, y=self.y, num_iter=20, save_learning_info=True)
+        plr.fit()
+        # all log-likelihoods should be strictly increasing
+        self.assertTrue(subsequent_entry_relationships(plr._log_likelihood_each_iter, op=operator.le))
+        # steps should be getting smaller
+        l1_norm_steps = [sum(abs(s)) for s in plr._step_each_iter]
+        self.assertTrue(subsequent_entry_relationships(l1_norm_steps, op=operator.ge))
+        # model should stop running upon convergence
+        self.assertTrue(plr.converged_ is True)
+        self.assertTrue(len(plr._log_likelihood_each_iter) < 20)
+        self.assertTrue((plr._log_likelihood_each_iter[-1] - plr._log_likelihood_each_iter[-2]) <= plr.tol_)
+
+    def test_coefficients(self):
+        """
+        Beta coefficients should be what you'd expect
+        :return:
+        """
+        np.random.seed(1010)
+        # X_1 should be negatively correlated and X_2 should be positively correlated
+        X1_0 = np.random.normal(loc=1, size=100)
+        X2_0 = np.random.normal(loc=-1, size=100)
+        X_0 = np.array([X1_0, X2_0]).T
+        X1_1 = np.random.normal(loc=-1, size=100)
+        X2_1 = np.random.normal(loc=1, size=100)
+        X_1 = np.array([X1_1, X2_1]).T
+        X = np.concatenate([X_0, X_1])
+        y = np.concatenate([np.zeros((100,)), np.ones((100,))]).astype(int)
+
+        # betas should match known correlation structures in the data
+        plr = PenalizedLogisticRegression(X=X, y=y)
+        plr.fit()
+        beta = plr.beta_.ravel()
+        self.assertTrue(beta[0] < 0)
+        self.assertTrue(beta[1] > 0)
+
+        # model should be predictive
+        self.assertTrue(roc_auc_score(y, plr.predict_probabilities() > 0.5) > 0.9)
 
 
 class LinearDiscriminantAnalysisTestCase(unittest.TestCase):
