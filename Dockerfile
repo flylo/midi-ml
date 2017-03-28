@@ -59,7 +59,9 @@ RUN chmod +x /usr/local/bin/run_pipeline
 
 # Cache data that we will re-use
 ARG data_folder="data/"
-ADD $data_folder ${HOME}/data
-ENV LOCAL_DATA_LOC ${HOME}/data
+ADD $data_folder ${HOME}/data_in
+RUN mkdir ${HOME}/data_out
+ENV DATA_IN_LOC ${HOME}/data_in/
+ENV DATA_OUT_LOC ${HOME}/data_out/
 
 CMD ["run_pipeline"]

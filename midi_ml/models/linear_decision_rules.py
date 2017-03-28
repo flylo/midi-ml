@@ -3,7 +3,9 @@ import numpy as np
 from functools import partial
 
 logger = logging.getLogger(__name__)
+logger.setLevel("DEBUG")
 
+# TODO: l1 penalty?
 
 class PenalizedLogisticRegression(object):
     """
@@ -364,6 +366,8 @@ def main():
     plr.fit()
     lda = LinearDiscriminantAnalysis(X=X, y=y)
     lda.fit()
+    import pdb
+    pdb.set_trace()
 
     nb = NaiveBayesClassifier(X=X, y=y, parametric_form="gaussian")
     nb.fit()
