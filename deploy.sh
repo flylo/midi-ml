@@ -57,7 +57,7 @@ then
             fi
             echo "running image version ${image_version}" \
                  "locally with args '`echo "${@:3}"`'"
-            docker run ${tagged_image} run_pipeline "${@:3}"
+            docker run -it ${tagged_image} run_pipeline "${@:3}"
 
 #        PICK UP AFTER THIS
         elif [ $2 == "remote" ];

@@ -1,10 +1,17 @@
+import logging
 import os
+from sklearn.externals import joblib
+import multiprocessing as mp
 from collections import defaultdict
 from itertools import product
 from typing import List
 import mido
 import numpy as np
 from scipy.sparse import dok_matrix, vstack
+from midi_ml.tools.util import copy_file_to_gcs
+
+logger = logging.getLogger(__name__)
+logger.setLevel("DEBUG")
 
 
 def window_gen(sequence, n):
@@ -50,6 +57,7 @@ class MidiFeatureCorpus(object):
         for p in paths:
             full_subpath = path + "/" + p
             try:
+                # print(full_subpath)
                 os.listdir(full_subpath)
                 dfs_results = self._depth_first_midi_search(full_subpath)
                 for file in dfs_results:
@@ -116,6 +124,33 @@ class LabeledCorpusSet(object):
         self.sparse_matrix = dok_matrix(matrix_shape)
         self.parsed_ = False
 
+    @staticmethod
+    def _parse_corpus(path: str, corpus_name: str, note_window_size: int = 2):
+        logger.info("Parsing %s" % path + corpus_name)
+        print("reading from {}".format(path + corpus_name))
+        corpus = MidiFeatureCorpus(path + corpus_name, note_window_size)
+        corpus.parse_corpus()
+        corpus_labels = [corpus_name for label in range(corpus.sparse_matrix.get_shape()[0])]
+        return (corpus.sparse_matrix, corpus_labels)
+
+    def parse_corpus_set_parallel(self):
+        """
+        Parse each corpus on a separate core
+        :return:
+        """
+        pool = mp.Pool(processes=os.cpu_count())
+        paths_names_and_window_sizes = []
+        for name in self.corpus_name_list_:
+            paths_names_and_window_sizes.append((self.path_, name, self.note_window_size_))
+        mp_out = pool.starmap(self._parse_corpus, paths_names_and_window_sizes)
+        matrix_set = []
+        for corpus_matrix, labels in mp_out:
+            matrix_set.append(corpus_matrix)
+            self.corpus_labels.append(labels)
+        logger.info("Finished parsing corpus set")
+        self.sparse_matrix = vstack(matrix_set)
+        self.parsed_ = True
+
     def parse_corpus_set(self):
         """
         Iterates through the files in the corpus. Will ignore directory structure within
@@ -124,6 +159,7 @@ class LabeledCorpusSet(object):
         matrix_set = []
         for corpus_name in self.corpus_name_list_:
             file_path = self.path_ + corpus_name
+            logger.info("reading from {}".format(file_path))
             print("reading from {}".format(file_path))
             corpus = MidiFeatureCorpus(file_path, self.note_window_size_)
             corpus.parse_corpus()
@@ -135,9 +171,16 @@ class LabeledCorpusSet(object):
         self.parsed_ = True
 
 
-def main(input: str, output: str, bucket: str) -> LabeledCorpusSet:
-    # download_from_gcs(bucket_name=bucket,
-    #                   prefix=input,
-    #                   local_fs_loc=os.environ["LOCAL_DATA_LOC"])
-    labeled_corpus = LabeledCorpusSet(os.environ["LOCAL_DATA_LOC"])
-    return labeled_corpus.parse_corpus_set()
+def main():
+    logger.info("Reading corpus")
+    labeled_corpus = LabeledCorpusSet(os.environ["DATA_IN_LOC"] + "/")
+    labeled_corpus.parse_corpus_set()
+    logger.info("Dumping corpus to disk")
+    joblib.dump(labeled_corpus.sparse_matrix.todense().A, os.environ["DATA_OUT_LOC"] + "/sparse_matrix")
+    joblib.dump(labeled_corpus.corpus_labels, os.environ["DATA_OUT_LOC"] + "/labels")
+    logger.info("Copying files to GCS")
+    print(labeled_corpus.sparse_matrix.todense().A.shape)
+    for file in os.listdir(os.environ["DATA_OUT_LOC"]):
+        copy_file_to_gcs(bucket_name="midi-ml",
+                         filename=os.environ["DATA_OUT_LOC"] + file,
+                         destination_path="parsed_corpus/" + file)
