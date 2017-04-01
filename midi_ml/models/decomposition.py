@@ -6,7 +6,7 @@ class PrincipalComponents(object):
     Run a principal components analysis
     """
 
-    def __init__(self, X):
+    def __init__(self, X, regularization: float = None):
         self.X = X.astype(float)
         self.means_ = None  # type: np.array
         self.sds_ = None  # type: np.array
@@ -14,6 +14,7 @@ class PrincipalComponents(object):
         self.eigenvalues_ = None  # type: np.array
         self.projection_matrix_ = None  # type: np.array
         self.num_records_ = self.X.shape[0]
+        self.regularization_ = regularization
 
     def _normalize(self, new_X: np.array = None) -> np.array:
         """
@@ -37,6 +38,10 @@ class PrincipalComponents(object):
         """
         self.X = self._normalize()
         self.covariance_ = np.dot(self.X.T, self.X) / (self.num_records_ - 1)
+        if self.regularization_ is not None:
+            reg_covariance = self.regularization_ * self.covariance_
+            reg_covariance += (1 - self.regularization_) * np.eye(self.covariance_.shape[1])
+            self.covariance_ = reg_covariance
 
     def _eigendecomposition(self):
         eigenvalues, eigenvectors = np.linalg.eig(self.covariance_)

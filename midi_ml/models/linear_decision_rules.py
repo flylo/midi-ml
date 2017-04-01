@@ -130,6 +130,7 @@ class LinearDiscriminantAnalysis(object):
     def __init__(self,
                  X: np.array,
                  y: np.array,
+                 regularization: float = None,
                  keep_copy_of_X=True):
         """
         :param X: (N * M)-dimensional array containing the input data in matrix form
@@ -148,6 +149,7 @@ class LinearDiscriminantAnalysis(object):
         self.decision_threshold_ = None  # type: float
         self.within_class_covariance_ = None  # type: np.array
         self.transformation_matrix_ = None  # type: np.array
+        self.regularization_ = regularization
 
     def _get_class_conditionals(self):
         """
@@ -171,6 +173,10 @@ class LinearDiscriminantAnalysis(object):
             X_minus_mu = self.X_given_class_[c] - self.mean_given_class_[c]
             self.class_covariances_[c] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
             self.within_class_covariance_ += self.class_priors_[c] * self.class_covariances_[c]
+            if self.regularization_ is not None:
+                reg_covariance = self.regularization_ * self.within_class_covariance_
+                reg_covariance += (1 - self.regularization_) * np.eye(self.within_class_covariance_.shape[1])
+                self.within_class_covariance_ = reg_covariance
 
     def predict(self, new_X: np.array = None):
         """

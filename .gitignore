@@ -9,4 +9,5 @@ tmp/
 *.swp
 *.ipynb_checkpoints/
 data/
+data_temp/
 notebooks/
