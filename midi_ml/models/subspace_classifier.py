@@ -58,7 +58,7 @@ class SubspaceClassifier(object):
                     .sum(axis=1)
 
         distances = np.vstack([projection_distance_to_class[i] for i in self.classes_]).T
-        return distances.argmax(axis=1)
+        return distances.argmin(axis=1)
 
     def fit(self):
         """
@@ -92,7 +92,7 @@ def main():
     #                                     n_informative=2,
     #                                     n_redundant=98,
     #                                     random_state=1010)
-    sc = SubspaceClassifier(X, y, covariance_regularization=0.3)
+    sc = SubspaceClassifier(X, y)
     sc.fit()
     sc.predict()
     from sklearn.metrics import confusion_matrix
