@@ -1,22 +1,5 @@
 import numpy as np
 from midi_ml.models.decomposition import PrincipalComponents
-from scipy.spatial.distance import cosine
-from sklearn.metrics import pairwise_distances
-
-import pdb
-
-
-def pairwise_cosine_distance(a: np.array, b: np.array) -> np.array:
-    """
-    find the distance between matching elements in two arrays
-    :param a:
-    :param b:
-    :return:
-    """
-    norm_a = np.sqrt(np.power(a, 2).sum(axis=1))
-    norm_b = np.sqrt(np.power(b, 2).sum(axis=1))
-    return np.sum(a * b) / (norm_a * norm_b)
-
 
 class SubspaceClassifier(object):
     def __init__(self,
@@ -62,19 +45,19 @@ class SubspaceClassifier(object):
             subspace_projection_operator = self.class_subspace_projection_operators_[c]  # type: np.array
             if new_X is None:
                 if self.keep_copy_of_X:
-                    # projection_distance_to_class[c] = np.power(self.X.dot(subspace_projection_operator), 2).sum(axis=1)
-                    projection_distance_to_class[c] = pairwise_cosine_distance(self.X,
-                                                                               self.X.dot(subspace_projection_operator))
-                    pdb.set_trace()
+                    if self.X.shape[1] > subspace_projection_operator.shape[1]:
+                        padding = np.zeros((subspace_projection_operator.shape[0],
+                                            self.X.shape[1] - subspace_projection_operator.shape[1]))
+                        subspace_projection_operator = np.hstack([subspace_projection_operator, padding])
+                    projection_distance_to_class[c] = np.power(self.X.dot(subspace_projection_operator), 2).sum(axis=1)
                 else:
                     raise ValueError("Must keep set keep_copy_of_X to True")
             else:
                 standardized_X = self._normalize(self.X)
-                projection_distance_to_class[c] = np.power(standardized_X.dot(subspace_projection_operator), 2).sum(
-                    axis=1)
+                projection_distance_to_class[c] = np.power(standardized_X.dot(subspace_projection_operator), 2) \
+                    .sum(axis=1)
 
         distances = np.vstack([projection_distance_to_class[i] for i in self.classes_]).T
-        # pdb.set_trace()
         return distances.argmax(axis=1)
 
     def fit(self):
@@ -89,7 +72,6 @@ class SubspaceClassifier(object):
                                      regularization=self.covariance_regularization_,
                                      keep_copy_of_X=self.keep_copy_of_X)
             pc.fit()
-
             percentage_variance = (pc.eigenvalues_ / pc.eigenvalues_.sum()).cumsum()
             idx = np.where(percentage_variance >= self.explained_variance_)[0][0]
             subspace_projection_operator = pc.projection_matrix_[:, :idx + 1]
@@ -100,14 +82,20 @@ class SubspaceClassifier(object):
 
 def main():
     from sklearn import datasets
-    from sklearn.metrics import confusion_matrix
     X, y = datasets.make_classification(n_samples=1000,
                                         n_features=2,
                                         n_informative=2,
                                         n_redundant=0,
                                         random_state=1010)
-    sc = SubspaceClassifier(X, y)
+    # X, y = datasets.make_classification(n_samples=1000,
+    #                                     n_features=100,
+    #                                     n_informative=2,
+    #                                     n_redundant=98,
+    #                                     random_state=1010)
+    sc = SubspaceClassifier(X, y, covariance_regularization=0.3)
     sc.fit()
+    sc.predict()
+    from sklearn.metrics import confusion_matrix
     print(confusion_matrix(y, sc.predict()))
     import pdb
     pdb.set_trace()
