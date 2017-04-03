@@ -30,3 +30,12 @@ class PrincipalComponentsTestCase(unittest.TestCase):
         # PCs should have eigenvalues of ~1.
         self.assertTrue(np.allclose(pc.eigenvalues_, np.array([2, 1, 1, 0]), atol=0.2))
         self.assertTrue(pc.transform() is not None)
+
+    def test_regularization(self):
+        pc = PrincipalComponents(self.X)
+        pc.fit()
+        pc_reg = PrincipalComponents(X=self.X, regularization=0.7)
+        pc_reg.fit()
+        # Check that the sample covariance between features is smaller when we introduce regularization
+        self.assertTrue(pc.covariance_[0, 1] - pc_reg.covariance_[0, 1] > 0)
+        self.assertTrue(pc.covariance_[1, 0] - pc_reg.covariance_[1, 0] > 0)

@@ -1,12 +1,19 @@
 import numpy as np
 
-
+# TODO: docstrings
 class PrincipalComponents(object):
     """
     Run a principal components analysis
     """
 
-    def __init__(self, X):
+    def __init__(self, X,
+                 regularization: float = None,
+                 keep_copy_of_X: bool = True,):
+        """
+        :param X: Input data
+        :param regularization: (optional) whether we want to regularize the covariance matrix to avoid singularity
+        :param keep_copy_of_X: whether to keep a copy of the training data once we train
+        """
         self.X = X.astype(float)
         self.means_ = None  # type: np.array
         self.sds_ = None  # type: np.array
@@ -14,6 +21,8 @@ class PrincipalComponents(object):
         self.eigenvalues_ = None  # type: np.array
         self.projection_matrix_ = None  # type: np.array
         self.num_records_ = self.X.shape[0]
+        self.regularization_ = regularization
+        self.keep_copy_of_X = keep_copy_of_X
 
     def _normalize(self, new_X: np.array = None) -> np.array:
         """
@@ -37,8 +46,16 @@ class PrincipalComponents(object):
         """
         self.X = self._normalize()
         self.covariance_ = np.dot(self.X.T, self.X) / (self.num_records_ - 1)
+        if self.regularization_ is not None:
+            reg_covariance = self.regularization_ * self.covariance_
+            reg_covariance += (1 - self.regularization_) * np.eye(self.covariance_.shape[1])
+            self.covariance_ = reg_covariance
 
     def _eigendecomposition(self):
+        """
+
+        :return:
+        """
         eigenvalues, eigenvectors = np.linalg.eig(self.covariance_)
         diagonal_eigenvalues = np.eye(self.X.shape[1]) * eigenvalues.T
         eigendecomposition = np.linalg.solve(eigenvectors.T, eigenvectors.T.dot(diagonal_eigenvalues))
@@ -50,7 +67,10 @@ class PrincipalComponents(object):
         if self.projection_matrix_ is None:
             raise ValueError("Must fit model before transformation")
         if new_X is None:
-            return self.X.dot(self.projection_matrix_)
+            if self.keep_copy_of_X:
+                return self.X.dot(self.projection_matrix_)
+            else:
+                raise ValueError("Must keep set keep_copy_of_X to True")
         else:
             return self._normalize(new_X).dot(self.projection_matrix_)
 
@@ -58,6 +78,8 @@ class PrincipalComponents(object):
         self._normalize()
         self._get_covariance()
         self._eigendecomposition()
+        if not self.keep_copy_of_X:
+            self.X = None
 
 
 def main():

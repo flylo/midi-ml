@@ -122,6 +122,13 @@ class LinearDiscriminantAnalysisTestCase(unittest.TestCase):
         self.assertTrue(all(np.round(self.lda.mean_given_class_[1]) == [-1, -2]))
         self.assertTrue(self.lda.class_priors_[0] == self.lda.class_priors_[0] == 0.5)
 
+    def test_regularization(self):
+        lda_reg = LinearDiscriminantAnalysis(X=self.X, y=self.y, regularization=0.7)
+        lda_reg.fit()
+        # Check that the sample covariance between features is smaller when we introduce regularization
+        self.assertTrue(self.lda.within_class_covariance_[0, 1] - lda_reg.within_class_covariance_[0, 1] > 0)
+        self.assertTrue(self.lda.within_class_covariance_[1, 0] - lda_reg.within_class_covariance_[1, 0] > 0)
+
 
 class NaiveBayesClassifierTestCase(unittest.TestCase):
     """

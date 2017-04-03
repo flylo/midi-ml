@@ -23,3 +23,5 @@ http://www.robotics.stanford.edu/~ang/papers/icml04-l1l2.ps
 http://qwone.com/~jason/writing/lr.pdf
     l2 derivation
 http://www.win-vector.com/blog/2011/09/the-simpler-derivation-of-logistic-regression/
+https://pdfs.semanticscholar.org/b493/0672d1170b0edeb05ea2b4a238bfb26fefcb.pdf
+    ^ subspace classifier
