@@ -173,10 +173,6 @@ class LinearDiscriminantAnalysis(object):
             X_minus_mu = self.X_given_class_[c] - self.mean_given_class_[c]
             self.class_covariances_[c] = np.dot(X_minus_mu.T, X_minus_mu) / (X_minus_mu.shape[0] - 1)
             self.within_class_covariance_ += self.class_priors_[c] * self.class_covariances_[c]
-            if self.regularization_ is not None:
-                reg_covariance = self.regularization_ * self.within_class_covariance_
-                reg_covariance += (1 - self.regularization_) * np.eye(self.within_class_covariance_.shape[1])
-                self.within_class_covariance_ = reg_covariance
 
     def predict(self, new_X: np.array = None):
         """
@@ -198,11 +194,17 @@ class LinearDiscriminantAnalysis(object):
         """
         self._get_class_conditionals()
         self._get_class_covariances()
+        if self.regularization_ is not None:
+            reg_covariance = self.regularization_ * self.within_class_covariance_
+            reg_covariance += (1 - self.regularization_) * np.eye(self.within_class_covariance_.shape[1])
+            self.within_class_covariance_ = reg_covariance
         difference_in_means = self.mean_given_class_[0] - self.mean_given_class_[1]
         self.transformation_matrix_ = np.linalg.solve(self.within_class_covariance_, difference_in_means)
         # The decision threshold is the hyperplane at the mid-point between projections of the means of the two classes
         self.decision_threshold_ = np.dot(self.transformation_matrix_,
                                           (self.mean_given_class_[0] + self.mean_given_class_[1]) / 2.)
+
+
 
 
 # TODO: get a better understanding of the smoothing
