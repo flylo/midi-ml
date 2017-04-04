@@ -31,6 +31,8 @@ class PrincipalComponents(object):
         self.projection_matrix_ = None  # type: np.array
         self.num_components_ = num_components
         self.num_records_ = self.X.shape[0]
+        if method != "eigendecomposition" and regularization is not None:
+            raise Warning("Regularization parameter will do nothing for eigendecomposition")
         self.regularization_ = regularization
         self.keep_copy_of_X = keep_copy_of_X
 

@@ -205,8 +205,6 @@ class LinearDiscriminantAnalysis(object):
                                           (self.mean_given_class_[0] + self.mean_given_class_[1]) / 2.)
 
 
-
-# TODO: get a better understanding of the smoothing
 class NaiveBayesClassifier(object):
     """
     Classifiers of the Naive Bayes family. All input features are assumed to be drawn from
@@ -274,12 +272,12 @@ class NaiveBayesClassifier(object):
         :param X: matrix to make predictions with
         :return:
         """
-        predictions = np.zeros((self.X.shape[0], len(self.classes_)))
+        predictions = np.zeros((X.shape[0], len(self.classes_)))
         for c in self.classes_:
             if self.parametric_form_ in ("multinomial", "bernoulli"):
                 class_conditional_log_probabilities = np.dot(X, self.thetas_[c])
             elif self.parametric_form_ == "gaussian":
-                class_conditional_log_probabilities = self.log_pdf_given_class_[c](self.X).sum(axis=1)
+                class_conditional_log_probabilities = self.log_pdf_given_class_[c](X).sum(axis=1)
             else:
                 raise ValueError("Must select proper feature family to make predictions")
             # we add the log of the prior probability of the class as an "intercept"
