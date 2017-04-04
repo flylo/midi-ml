@@ -162,6 +162,13 @@ class NaiveBayesClassifierTestCase(unittest.TestCase):
         self.assertTrue(gaussian_nb.log_pdf_given_class_[0](-1).sum() < gaussian_nb.log_pdf_given_class_[1](-1).sum())
         self.assertTrue(confusion[0, 0] > 90, confusion[1, 1] > 90)
 
+        # predictions should work for new arrays
+        gaussian_nb = NaiveBayesClassifier(X, self.y, parametric_form="gaussian", keep_copy_of_X=False)
+        gaussian_nb.fit()
+        random_subset = np.random.choice(np.arange(X.shape[0]), size=10)
+        new_X = X[random_subset]
+        self.assertTrue(gaussian_nb.predict(new_X=new_X) is not None)
+
     def test_multinomial_model(self):
         """
         test that the multinomial naive bayes classifier runs and produces sensible log probabilities
@@ -189,6 +196,13 @@ class NaiveBayesClassifierTestCase(unittest.TestCase):
         self.assertTrue(multinomial_nb.thetas_[1][1] > multinomial_nb.thetas_[0][0])
         self.assertTrue(confusion[0, 0] > 90, confusion[1, 1] > 90)
 
+        # predictions should work for new arrays
+        multinomial_nb = NaiveBayesClassifier(X, self.y, parametric_form="multinomial", keep_copy_of_X=False)
+        multinomial_nb.fit()
+        random_subset = np.random.choice(np.arange(X.shape[0]), size=10)
+        new_X = X[random_subset]
+        self.assertTrue(multinomial_nb.predict(new_X=new_X) is not None)
+
     def test_bernoulli_model(self):
         """
         test that the bernoulli naive bayes classifier runs and produces sensible log probabilities
@@ -206,7 +220,7 @@ class NaiveBayesClassifierTestCase(unittest.TestCase):
         # force Xs to be bernoulli RVs (i.e. just 0s and 1s)
         X = (X > 0).astype(int)
 
-        bernoulli_nb = NaiveBayesClassifier(X, self.y, parametric_form="multinomial")
+        bernoulli_nb = NaiveBayesClassifier(X, self.y, parametric_form="bernoulli")
         bernoulli_nb.fit()
 
         confusion = confusion_matrix(self.y, bernoulli_nb.predict())
@@ -216,4 +230,11 @@ class NaiveBayesClassifierTestCase(unittest.TestCase):
         self.assertTrue(bernoulli_nb.thetas_[0][0] > bernoulli_nb.thetas_[0][1])
         # log probability of X2 should be greater than log probability of X1 for class 1
         self.assertTrue(bernoulli_nb.thetas_[1][1] > bernoulli_nb.thetas_[0][0])
-        self.assertTrue(confusion[0, 0] > 90, confusion[1, 1] > 90)
+        self.assertTrue(confusion[1, 1] > 90)
+
+        # predictions should work for new arrays
+        bernoulli_nb = NaiveBayesClassifier(X, self.y, parametric_form="bernoulli", keep_copy_of_X=False)
+        bernoulli_nb.fit()
+        random_subset = np.random.choice(np.arange(X.shape[0]), size=10)
+        new_X = X[random_subset]
+        self.assertTrue(bernoulli_nb.predict(new_X=new_X) is not None)
