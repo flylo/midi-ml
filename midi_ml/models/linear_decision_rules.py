@@ -206,7 +206,6 @@ class LinearDiscriminantAnalysis(object):
 
 
 
-
 # TODO: get a better understanding of the smoothing
 class NaiveBayesClassifier(object):
     """

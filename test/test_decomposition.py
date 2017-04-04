@@ -29,7 +29,34 @@ class PrincipalComponentsTestCase(unittest.TestCase):
         # Therefore, one of our PCs should have a corresponding eigenvalue of ~2 and the next two
         # PCs should have eigenvalues of ~1.
         self.assertTrue(np.allclose(pc.eigenvalues_, np.array([2, 1, 1, 0]), atol=0.2))
+        # Standard deviations of transformed matrix should match up with eigenvalues
+        self.assertTrue(np.allclose(pc.transform().std(axis=0), np.array([2, 1, 1, 0]), atol=0.2))
         self.assertTrue(pc.transform() is not None)
+        # Test that number of components fitting works
+        pc = PrincipalComponents(self.X, num_components=2)
+        pc.fit()
+        self.assertTrue(pc.transform().shape[1] == 2)
+
+    def test_svd_fit(self):
+        """
+        Test that the svd behaves as expected
+        :return:
+        """
+        pc = PrincipalComponents(self.X, method="svd")
+        pc.fit()
+        # We have 2 highly correlated features and 2 features that are perfectly uncorrelated.
+        # Therefore, one of our PCs should have a corresponding eigenvalue of ~2 and the next two
+        # PCs should have eigenvalues of ~1.
+        self.assertTrue(np.allclose(pc.eigenvalues_, np.array([2, 1, 1, 0]), atol=0.2))
+        # Variances of transformed matrix should match up with eigenvalues
+        self.assertTrue(np.allclose(pc.transform().var(axis=0), np.array([2, 1, 1, 0]), atol=0.2))
+        self.assertTrue(pc.transform() is not None)
+        # Test that number of components fitting works
+        pc = PrincipalComponents(self.X, method="svd", num_components=2)
+        pc.fit()
+        self.assertTrue(pc.transform().shape[1] == 2)
+
+
 
     def test_regularization(self):
         pc = PrincipalComponents(self.X)
