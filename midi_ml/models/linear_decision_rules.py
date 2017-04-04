@@ -277,7 +277,7 @@ class NaiveBayesClassifier(object):
             if self.parametric_form_ in ("multinomial", "bernoulli"):
                 class_conditional_log_probabilities = np.dot(X, self.thetas_[c])
             elif self.parametric_form_ == "gaussian":
-                class_conditional_log_probabilities = self.log_pdf_given_class_[c](X).sum(axis=1)
+                class_conditional_log_probabilities = np.nan_to_num(self.log_pdf_given_class_[c](X)).sum(axis=1)
             else:
                 raise ValueError("Must select proper feature family to make predictions")
             # we add the log of the prior probability of the class as an "intercept"
