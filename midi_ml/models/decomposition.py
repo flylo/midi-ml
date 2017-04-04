@@ -35,6 +35,8 @@ class PrincipalComponents(object):
         if new_X is None:
             self.means_ = self.X.mean(axis=0)
             self.sds_ = np.sqrt(np.power(self.X - self.means_, 2).mean(axis=0))
+            # set sds to 1 if there is no variance so normalization doesn't return NaN
+            self.sds_[self.sds_ == 0] = 1
             return (self.X - self.means_) / self.sds_
         else:
             return (new_X - self.means_) / self.sds_
