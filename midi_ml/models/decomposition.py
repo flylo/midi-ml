@@ -84,7 +84,6 @@ class PrincipalComponents(object):
         """
         u, s, v = np.linalg.svd(self.X, full_matrices=False)
         self.eigenvalues_ = s**2 / self.X.shape[0]
-        # self.projection_matrix_ = v.T
         self.projection_matrix_ = v.T
 
     def transform(self, new_X: np.array = None) -> np.array:

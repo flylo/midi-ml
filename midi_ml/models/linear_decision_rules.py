@@ -5,6 +5,7 @@ from functools import partial
 logger = logging.getLogger(__name__)
 logger.setLevel("DEBUG")
 
+
 # TODO: l1 penalty?
 
 class PenalizedLogisticRegression(object):
@@ -40,13 +41,15 @@ class PenalizedLogisticRegression(object):
         self._betas_each_iter = []
         self._step_each_iter = []
 
+    # TODO: update computation to include regularization term on coefs
     def _log_likelihood(self) -> float:
         """
         Return the log-likelihood of the model given the data (i.e. P(D|M))
         :return:
         """
         beta_dot_x = self.beta_.dot(self.X.T)
-        log_prob_data_given_theta = self.y * beta_dot_x - np.log(1 + np.exp(beta_dot_x))
+        log_prob_data_given_theta = self.y * beta_dot_x - np.log(1 + np.exp(beta_dot_x)) - \
+                                    self.lmbda_ * np.sum(self.beta_**2)
         return np.sum(log_prob_data_given_theta)
 
     def predict_probabilities(self, new_X: np.array = None) -> np.array:
