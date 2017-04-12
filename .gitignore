@@ -10,4 +10,4 @@ tmp/
 *.ipynb_checkpoints/
 data/
 data_temp/
-notebooks/
+
