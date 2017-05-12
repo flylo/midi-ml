@@ -1,9 +1,7 @@
 import numpy as np
-
 import pdb
 
 
-# TODO: invert the dict so that we search by pattern before class
 class NTupleClassifier(object):
     """
     """
@@ -14,6 +12,7 @@ class NTupleClassifier(object):
                  M: int = 10,
                  L: int = 5,
                  num_bins=20,
+                 random_seed=1010,
                  keep_copy_of_X=True):
         """
         :param X: (N * M)-dimensional array containing the input data in matrix form
@@ -24,7 +23,9 @@ class NTupleClassifier(object):
         self.y = y
         self.M = M
         self.L = L
-        self.T_mk = {}
+        self.random_state = np.random.RandomState(random_seed)
+        # class-conditional pattern-conditional contingency table
+        self.T = {}
         # must be integers starting at 0 and increasing by 1
         self.classes_ = set(self.y)
         self.keep_copy_of_X = keep_copy_of_X
@@ -33,9 +34,8 @@ class NTupleClassifier(object):
         self.pattern_sets = {}
         self.feature_bins = {}
         self.fitted = False
-
-    def _predict(self, X) -> np.array:
-        pass
+        # new attributes as per convo with haralick
+        self.nd_contingency_table = {}
 
     def predict(self, new_X: np.array = None):
         """
@@ -43,67 +43,40 @@ class NTupleClassifier(object):
         :param new_X: New set of X values to make predictions with (optional)
         :return:
         """
+        sorted_classes = range(len(self.classes_))
         if new_X is None:
             if not self.keep_copy_of_X:
                 raise ValueError("Must keep copy of X in order to make predictions")
             if not self.fitted:
                 raise LookupError("Model must be trained in order to make predicitons")
-            T_mk_b = {k: np.zeros((self.X.shape[0], self.M)) for k in self.classes_}
+            # T_hat = {m: {cls: 0. for cls in self.classes_} for m in self.T.keys()}
+            T_hat = {cls: np.zeros((self.X_discretized.shape[0], self.M)) for cls in self.classes_}
             for i, x in enumerate(self.X_discretized):
-                for m in range(self.M):
-                    binary = ""
-                    for l in range(self.L):
-                        locs = self.pattern_sets[m][l]
-                        # since each feature is a discretized continuous RV, we
-                        # are checking if the random index is equal to the actual
-                        # value of the categorical (discretized RV) feature
-                        if x[locs[0]] == locs[1]:
-                            binary += str(1)
-                        else:
-                            binary += str(0)
+                for m, pattern_set in self.pattern_sets.items():
+                    x_subspace = tuple(x[pattern_set])
                     for cls in self.classes_:
                         try:
-                            T_mk_b[cls][i, m] = self.T_mk[cls][m][binary]
+                            T_hat[cls][i, m] = self.T[m][cls][x_subspace]
                         except KeyError:
-                            # if there were no instances of this pattern
-                            # in the training set, then we keep the prediction
-                            # as probability 0.0
                             continue
-            # we use the decision rule f_k = sum_{m=1}^M T_mk(b_m)
-            class_T_mk_sum = [T_mk_b[cls].sum(axis=1).reshape((self.X.shape[0], 1)) for cls in self.classes_]
-            class_T_mk_sum = np.concatenate(class_T_mk_sum, axis=1)
-            f_k = class_T_mk_sum.argmax(axis=1)
-            return f_k
+            log_prob = np.vstack([np.log(T_hat[cls] + 0.00001).sum(axis=1) for cls in sorted_classes]).T
+            return log_prob.argmax(axis=1)
+
 
         else:
             new_X_discretized = self._discretize_prediction_data(new_X)
-            T_mk_b = {k: np.zeros((new_X.shape[0], self.M)) for k in self.classes_}
+            T_hat = {cls: np.zeros((new_X_discretized.shape[0], self.M)) for cls in self.classes_}
             for i, x in enumerate(new_X_discretized):
-                for m in range(self.M):
-                    binary = ""
-                    for l in range(self.L):
-                        locs = self.pattern_sets[m][l]
-                        # since each feature is a discretized continuous RV, we
-                        # are checking if the random index is equal to the actual
-                        # value of the categorical (discretized RV) feature
-                        if x[locs[0]] == locs[1]:
-                            binary += str(1)
-                        else:
-                            binary += str(0)
+                for m, pattern_set in self.pattern_sets.items():
+                    x_subspace = tuple(x[pattern_set])
                     for cls in self.classes_:
                         try:
-                            T_mk_b[cls][i, m] = self.T_mk[cls][m][binary]
+                            T_hat[cls][i, m] = self.T[m][cls][x_subspace]
                         except KeyError:
-                            # if there were no instances of this pattern
-                            # in the training set, then we keep the prediction
-                            # as probability 0.0
                             continue
-            # we use the decision rule f_k = sum_{m=1}^M T_mk(b_m)
-            class_T_mk_sum = [T_mk_b[cls].sum(axis=1).reshape((new_X.shape[0], 1)) for cls in self.classes_]
-            class_T_mk_sum = np.concatenate(class_T_mk_sum, axis=1)
-            # f_k = class_T_mk_sum.argmax(axis=1)
-            f_k = class_T_mk_sum
-            return f_k
+            log_prob = np.vstack([np.log(T_hat[cls] + 0.00001).sum(axis=1) for cls in sorted_classes]).T
+            return log_prob.argmax(axis=1)
+
 
     def _discretize_prediction_data(self, new_X: np.array = None) -> np.array:
         X_discretized = np.zeros(new_X.shape)
@@ -126,9 +99,9 @@ class NTupleClassifier(object):
                 X_bins = np.histogram(self.X[:, k], bins=self.num_bins)[1]
                 self.feature_bins[k] = X_bins
                 X_discretized[:, k] = np.digitize(self.X[:, k], X_bins)
-        self.X_discretized = X_discretized
+        self.X_discretized = X_discretized.astype(int)
 
-    def fit(self):
+    def fit_init(self):
         """
         Exposed API for training an n-tuple classifier
         :return:
@@ -136,36 +109,28 @@ class NTupleClassifier(object):
         self._discretize_training_data()
 
         # create pattern sets
-        possible_columns = np.arange(self.X.shape[1])
-        possible_records = np.arange(self.num_bins)
+        possible_dimensions = np.arange(self.X.shape[1])
+        self.T = {m: {cls: {} for cls in self.classes_} for m in range(self.M)}
+        # each m is a subspace
         for m in range(self.M):
             self.pattern_sets[m] = {}
-            for l in range(self.L):
-                random_column = np.random.choice(possible_columns)
-                random_record = np.random.choice(possible_records)
-                self.pattern_sets[m][l] = (random_column, random_record)
+            # L is the dimensionality of the subspace m
+            self.pattern_sets[m] = [self.random_state.choice(possible_dimensions) for l in range(self.L)]
 
-        for cls in self.classes_:
-            self.T_mk[cls] = {m: {} for m in range(self.M)}
-            cls_idx = np.where(self.y == cls)[0]
-            cls_size = cls_idx.shape[0]
-            for row in cls_idx:
-                x = self.X_discretized[row, :]
-                for m in range(self.M):
-                    binary = ""
-                    for l in range(self.L):
-                        locs = self.pattern_sets[m][l]
-                        # since each feature is a discretized continuous RV, we
-                        # are checking if the random index is equal to the actual
-                        # value of the categorical (discretized RV) feature
-                        if x[locs[0]] == locs[1]:
-                            binary += str(1)
-                        else:
-                            binary += str(0)
+        for m in range(self.M):
+            for cls in self.classes_:
+                cls_idx = np.where(self.y == cls)[0]
+                num_records_in_class = cls_idx.shape[0]
+                pattern_hash_table = {}
+                for row in cls_idx:
+                    x = self.X_discretized[row, :]
+                    x_subspace = tuple(x[self.pattern_sets[m]])
                     try:
-                        self.T_mk[cls][m][binary] += 1. / (cls_size)
+                        pattern_hash_table[x_subspace] += 1
                     except KeyError:
-                        self.T_mk[cls][m][binary] = 1. / (cls_size)
+                        pattern_hash_table[x_subspace] = 1
+                # get the class-conditional probability of a pattern
+                self.T[m][cls] = {k: v / num_records_in_class for k, v in pattern_hash_table.items()}
         self.fitted = True
 
 
@@ -175,13 +140,15 @@ if __name__ == "__main__":
     from midi_ml.models.n_tuple import *
 
     X, y = datasets.make_classification(n_samples=1000,
-                                        n_features=50,
-                                        n_informative=40,
-                                        n_redundant=10,
+                                        n_features=10,
+                                        n_informative=8,
+                                        n_redundant=2,
                                         random_state=1010)
     X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y)
-    nt = NTupleClassifier(X_train, y_train, M=200, L=5, num_bins=5)
-    nt.fit()
-    preds = nt.predict(new_X=X_test).argmax(axis=1)
-    metrics.confusion_matrix(y_test, preds)
-    metrics.confusion_matrix(y_train, nt.predict())
+
+    nt = NTupleClassifier(X_train, y_train, M=50, L=5, num_bins=10)
+    nt.fit_init()
+    nt.predict()
+    preds = nt.predict(new_X=X_test)
+    print(metrics.confusion_matrix(y_train, nt.predict()))
+    print(metrics.confusion_matrix(y_test, preds))
