@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.model_selection import KFold
+# from sklearn.model_selection import KFold
+from sklearn.cross_validation import KFold
 from sklearn.metrics import accuracy_score
 from math import log
 import pdb
@@ -160,14 +161,14 @@ class NTupleClassifier(object):
             return AttributeError("invalid usage")
 
     def _train_new_pattern_set(self, num_folds: int, m: int):
-        kfold = KFold(n_splits=num_folds)
+        kfold = KFold(self.y.shape[0], num_folds, shuffle=True, random_state=self.random_state)
         scores_candidate = []
         scores_orig = []
         possible_dimensions = np.arange(self.X.shape[1])
         candidate_pattern = self.pattern_sets[m].copy()
         # randomly select an element to switch and randomly insert a new element
         candidate_pattern[self.random_state.choice(self.L, )] = self.random_state.choice(possible_dimensions)
-        for train_idx, test_idx in kfold.split(self.y):
+        for train_idx, test_idx in kfold:
             X_train = self._discretize_prediction_data(self.X[train_idx])
             X_test = self.X[test_idx]
             y_train = self.y[train_idx]
