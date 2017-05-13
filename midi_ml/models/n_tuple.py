@@ -1,4 +1,7 @@
 import numpy as np
+from sklearn.model_selection import KFold
+from sklearn.metrics import accuracy_score
+from math import log
 import pdb
 
 
@@ -77,7 +80,6 @@ class NTupleClassifier(object):
             log_prob = np.vstack([np.log(T_hat[cls] + 0.00001).sum(axis=1) for cls in sorted_classes]).T
             return log_prob.argmax(axis=1)
 
-
     def _discretize_prediction_data(self, new_X: np.array = None) -> np.array:
         X_discretized = np.zeros(new_X.shape)
         # don't count columns that have 0 variance
@@ -133,6 +135,60 @@ class NTupleClassifier(object):
                 self.T[m][cls] = {k: v / num_records_in_class for k, v in pattern_hash_table.items()}
         self.fitted = True
 
+    def _pattern_log_prob(self, candidate_pattern: tuple, candidate_T_m: dict):
+        prob_data_given_class = np.zeros((self.X_discretized.shape[0], len(self.classes_))) + 0.00001
+        for i, x in enumerate(self.X_discretized):
+            x_subspace = tuple(x[candidate_pattern])
+            for cls in self.classes_:
+                try:
+                    prob_data_given_class[i, cls] = candidate_T_m[cls][x_subspace]
+                except KeyError:
+                    continue
+        # try this bayes rule weee
+        priors = np.bincount(self.y) / len(self.y)
+        normalizing_constant = (prob_data_given_class * priors).sum(axis=1)
+        # pdb.set_trace()
+        log_prob = np.log(prob_data_given_class * priors / np.vstack([normalizing_constant for _ in self.classes_]).T)
+        #
+        return log_prob
+
+    def _train_new_pattern_set(self, m: int):
+        possible_dimensions = np.arange(self.X.shape[1])
+        candidate_pattern = self.pattern_sets[m].copy()
+        # print("original pattern: " + str(self.pattern_sets[m]))
+        # randomly select an element to switch and randomly insert a new element
+        candidate_pattern[self.random_state.choice(self.L,)] = self.random_state.choice(possible_dimensions)
+        # print("new pattern: " + str(candidate_pattern))
+        candidate_T_m = {}
+        for cls in self.classes_:
+            cls_idx = np.where(self.y == cls)[0]
+            num_records_in_class = cls_idx.shape[0]
+            candidate_T_m[cls] = {}
+            for row in cls_idx:
+                x = self.X_discretized[row, :]
+                x_subspace = tuple(x[candidate_pattern])
+                try:
+                    candidate_T_m[cls][x_subspace] += 1
+                except KeyError:
+                    candidate_T_m[cls][x_subspace] = 1
+            candidate_T_m[cls] = {k: v / num_records_in_class for k, v in candidate_T_m[cls].items()}
+        candidate_log_prob = self._pattern_log_prob(candidate_pattern, candidate_T_m)
+        original_log_prob = self._pattern_log_prob(self.pattern_sets[m], self.T[m])
+        class_mask = np.stack([self.y == cls for cls in range(len(self.classes_))], axis=1)
+        new_cross_entropy = -candidate_log_prob[class_mask].sum()
+        original_cross_entropy = -original_log_prob[class_mask].sum()
+        # pdb.set_trace()
+        # print("original cross ent: " + str(original_cross_entropy))
+        # print("new cross ent: " + str(new_cross_entropy))
+        if new_cross_entropy < original_cross_entropy:
+            # print("new pattern selected!")
+            self.pattern_sets[m] = candidate_pattern
+            self.T[m] = candidate_T_m
+
+    def fit_optimize(self, num_iter: int = 10):
+        for i in range(num_iter):
+            self._train_new_pattern_set(self.random_state.choice(self.M))
+
 
 if __name__ == "__main__":
     import numpy as np
@@ -146,9 +202,25 @@ if __name__ == "__main__":
                                         random_state=1010)
     X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y)
 
-    nt = NTupleClassifier(X_train, y_train, M=50, L=5, num_bins=10)
+    nt = NTupleClassifier(X_train, y_train, M=20, L=2, num_bins=10)
     nt.fit_init()
     nt.predict()
-    preds = nt.predict(new_X=X_test)
-    print(metrics.confusion_matrix(y_train, nt.predict()))
+    # nt.fit_optimize(num_iter=100)
+    # preds = nt.predict(new_X=X_test)
+    print(metrics.accuracy_score(y_train, nt.predict()))
+    # print(metrics.confusion_matrix(y_test, preds))
+    # print(metrics.accuracy_score(y_test, preds))
+    nt.fit_optimize(num_iter=1000)
+    # preds = nt.predict(new_X=X_test)
+    print(metrics.accuracy_score(y_train, nt.predict()))
+
+
+
+    from sklearn.linear_model import LogisticRegression
+
+    lr = LogisticRegression()
+    lr.fit(X_train, y_train)
+    preds = lr.predict(X_test)
+    print(metrics.confusion_matrix(y_train, lr.predict(X_train)))
     print(metrics.confusion_matrix(y_test, preds))
+    print(metrics.accuracy_score(y_test, preds))
