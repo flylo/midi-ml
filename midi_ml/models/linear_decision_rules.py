@@ -206,7 +206,6 @@ class LinearDiscriminantAnalysis(object):
             reg_covariance = self.regularization_ * self.within_class_covariance_
             reg_covariance += (1 - self.regularization_) * np.eye(self.within_class_covariance_.shape[1])
             self.within_class_covariance_ = reg_covariance
-        # difference_in_means = self.mean_given_class_[0] - self.mean_given_class_[1]
         num_features = self.X.shape[1]
         global_means = self.X.mean(axis=0).reshape((num_features, 1))
         self.between_class_covariance_ = np.zeros((num_features, num_features))
