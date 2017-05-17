@@ -165,8 +165,6 @@ class LinearDiscriminantAnalysis(object):
             self.X_given_class_[c] = self.X[np.where(self.y == c)]
             self.mean_given_class_[c] = self.X_given_class_[c].mean(axis=0)
             self.class_priors_[c] = self.X_given_class_[c].shape[0] / float(self.X.shape[0])
-        if not self.keep_copy_of_X:
-            self.X = None
 
     def _get_class_covariances(self):
         """
@@ -217,6 +215,8 @@ class LinearDiscriminantAnalysis(object):
         self.transformation_matrix_ = np.linalg.solve(self.within_class_covariance_, self.between_class_covariance_)
         proj_means = {cls: self.mean_given_class_[cls].dot(self.transformation_matrix_) for cls in self.classes_}
         self.projected_means_ = proj_means
+        if not self.keep_copy_of_X:
+            self.X = None
 
 
 class NaiveBayesClassifier(object):

@@ -149,6 +149,11 @@ class LinearDiscriminantAnalysisTestCase(unittest.TestCase):
         self.assertTrue(confusion[1, 1] > 90)
         self.assertTrue(confusion[2, 2] > 90)
 
+    def test_x_delete(self):
+        lda = LinearDiscriminantAnalysis(X=self.X, y=self.y, keep_copy_of_X=False)
+        lda.fit()
+        self.assertTrue(lda.X is None)
+
 
 class NaiveBayesClassifierTestCase(unittest.TestCase):
     """
