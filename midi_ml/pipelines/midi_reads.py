@@ -78,7 +78,7 @@ class MidiFeatureCorpus(object):
 
     @staticmethod
     def get_n_note_sequence(midi: mido.MidiFile,
-                            note_window_size: int = 2):
+                            note_window_size: int = 2) -> List[str]:
         notes = [str(m.note) for m in midi if m.type == "note_on"]
         n_note_sequences = []
         for note_seq in window_gen(notes, note_window_size):
@@ -86,7 +86,7 @@ class MidiFeatureCorpus(object):
         return n_note_sequences
 
     @staticmethod
-    def sequence_encoder(seq: List[str]):
+    def sequence_encoder(seq: List[str]) -> defaultdict(float):
         d = defaultdict(float)
         for entry in seq:
             d[entry] += 1.
