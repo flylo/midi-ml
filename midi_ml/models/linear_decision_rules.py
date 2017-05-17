@@ -49,7 +49,7 @@ class PenalizedLogisticRegression(object):
         """
         beta_dot_x = self.beta_.dot(self.X.T)
         log_prob_data_given_theta = self.y * beta_dot_x - np.log(1 + np.exp(beta_dot_x)) - \
-                                    self.lmbda_ * np.sum(self.beta_**2)
+                                    self.lmbda_ * np.sum(self.beta_ ** 2)
         return np.sum(log_prob_data_given_theta)
 
     def predict_probabilities(self, new_X: np.array = None) -> np.array:
@@ -151,7 +151,9 @@ class LinearDiscriminantAnalysis(object):
         self.class_covariances_ = {}
         self.decision_threshold_ = None  # type: float
         self.within_class_covariance_ = None  # type: np.array
+        self.between_class_covariance_ = None  # type: np.array
         self.transformation_matrix_ = None  # type: np.array
+        self.projected_means_ = {}
         self.regularization_ = regularization
 
     def _get_class_conditionals(self):
@@ -179,16 +181,19 @@ class LinearDiscriminantAnalysis(object):
 
     def predict(self, new_X: np.array = None):
         """
-        Exposed API to make predictions
+        Exposed API to make predictions. Points are classified based on distance to projected mean
+        in the projected space
         :param new_X: New set of X values to make predictions with (optional)
         :return:
         """
         if new_X is None:
             if not self.keep_copy_of_X:
                 raise ValueError("Must keep copy of X in order to make predictions")
-            return (self.X.dot(self.transformation_matrix_) < self.decision_threshold_).astype(int)
+            projected_data = self.X.dot(self.transformation_matrix_)
         else:
-            return (new_X.dot(self.transformation_matrix_) < self.decision_threshold_).astype(int)
+            projected_data = new_X.dot(self.transformation_matrix_)
+        dist_to_means = [((projected_data - self.projected_means_[cls]) ** 2).sum(axis=1) for cls in self.classes_]
+        return np.stack(dist_to_means).T.argmin(axis=1)
 
     def fit(self):
         """
@@ -201,11 +206,18 @@ class LinearDiscriminantAnalysis(object):
             reg_covariance = self.regularization_ * self.within_class_covariance_
             reg_covariance += (1 - self.regularization_) * np.eye(self.within_class_covariance_.shape[1])
             self.within_class_covariance_ = reg_covariance
-        difference_in_means = self.mean_given_class_[0] - self.mean_given_class_[1]
-        self.transformation_matrix_ = np.linalg.solve(self.within_class_covariance_, difference_in_means)
-        # The decision threshold is the hyperplane at the mid-point between projections of the means of the two classes
-        self.decision_threshold_ = np.dot(self.transformation_matrix_,
-                                          (self.mean_given_class_[0] + self.mean_given_class_[1]) / 2.)
+        # difference_in_means = self.mean_given_class_[0] - self.mean_given_class_[1]
+        num_features = self.X.shape[1]
+        global_means = self.X.mean(axis=0).reshape((num_features, 1))
+        self.between_class_covariance_ = np.zeros((num_features, num_features))
+        for cls in self.classes_:
+            class_means = self.mean_given_class_[cls].reshape((num_features, 1))
+            class_counts = self.X_given_class_[cls].shape[0]
+            class_means_dot_global = (class_means - global_means)
+            self.between_class_covariance_ += class_counts * class_means_dot_global.dot(class_means_dot_global.T)
+        self.transformation_matrix_ = np.linalg.solve(self.within_class_covariance_, self.between_class_covariance_)
+        proj_means = {cls: self.mean_given_class_[cls].dot(self.transformation_matrix_) for cls in self.classes_}
+        self.projected_means_ = proj_means
 
 
 class NaiveBayesClassifier(object):
