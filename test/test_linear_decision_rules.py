@@ -129,6 +129,26 @@ class LinearDiscriminantAnalysisTestCase(unittest.TestCase):
         self.assertTrue(self.lda.within_class_covariance_[0, 1] - lda_reg.within_class_covariance_[0, 1] > 0)
         self.assertTrue(self.lda.within_class_covariance_[1, 0] - lda_reg.within_class_covariance_[1, 0] > 0)
 
+    def test_multiple_casses(self):
+        np.random.seed(1010)
+        X1_0 = np.random.normal(loc=1, size=100)
+        X2_0 = np.random.normal(loc=2, size=100)
+        X_0 = np.array([X1_0, X2_0]).T
+        X1_1 = np.random.normal(loc=-1, size=100)
+        X2_1 = np.random.normal(loc=-2, size=100)
+        X_1 = np.array([X1_1, X2_1]).T
+        X1_2 = np.random.normal(loc=-10, size=100)
+        X2_2 = np.random.normal(loc=-20, size=100)
+        X_2 = np.array([X1_2, X2_2]).T
+        X = np.concatenate([X_0, X_1, X_2])
+        y = np.concatenate([np.zeros((100,)), np.ones((100,)), np.ones((100,)) + 1]).astype(int)
+        lda = LinearDiscriminantAnalysis(X=X, y=y)
+        lda.fit()
+        confusion = confusion_matrix(y, lda.predict())
+        self.assertTrue(confusion[0, 0] > 90)
+        self.assertTrue(confusion[1, 1] > 90)
+        self.assertTrue(confusion[2, 2] > 90)
+
 
 class NaiveBayesClassifierTestCase(unittest.TestCase):
     """
