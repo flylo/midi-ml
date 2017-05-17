@@ -232,14 +232,5 @@ if __name__ == "__main__":
     nt.fit_init()
     nt.predict()
     print(metrics.accuracy_score(y_test, nt.predict(new_X=X_test)))
-    nt.fit_optimize(num_iter=100, num_folds=5)
+    nt.fit_optimize(num_iter=100, num_folds=3)
     print(metrics.accuracy_score(y_test, nt.predict(new_X=X_test)))
-    #
-    # from sklearn.linear_model import LogisticRegression
-    #
-    # lr = LogisticRegression()
-    # lr.fit(X_train, y_train)
-    # preds = lr.predict(X_test)
-    # print(metrics.confusion_matrix(y_train, lr.predict(X_train)))
-    # print(metrics.confusion_matrix(y_test, preds))
-    # print(metrics.accuracy_score(y_test, preds))
