@@ -6,9 +6,6 @@ from sklearn.metrics import confusion_matrix, roc_auc_score
 from midi_ml.models.linear_decision_rules import PenalizedLogisticRegression, LinearDiscriminantAnalysis, \
     NaiveBayesClassifier
 
-# TODO: remove
-import pdb
-
 
 def subsequent_entry_relationships(x: list, op: operator = operator.ge):
     """
@@ -148,7 +145,7 @@ class LinearDiscriminantAnalysisTestCase(unittest.TestCase):
         lda = LinearDiscriminantAnalysis(X=X, y=y)
         lda.fit()
         confusion = confusion_matrix(y, lda.predict())
-        self.assertTrue(confusion[0,0] > 90)
+        self.assertTrue(confusion[0, 0] > 90)
         self.assertTrue(confusion[1, 1] > 90)
         self.assertTrue(confusion[2, 2] > 90)
 
